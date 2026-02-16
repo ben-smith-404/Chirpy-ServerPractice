@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sync/atomic"
 
@@ -11,6 +12,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	isDev          bool
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -33,6 +35,18 @@ func (cfg *apiConfig) handleHits(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handleReset(w http.ResponseWriter, r *http.Request) {
+	if !cfg.isDev {
+		log.Print("Endpoint only available in development")
+		respondWithError(w, 403, "something went wrong")
+		return
+	}
+
+	err := cfg.db.ResetUsers(r.Context())
+	if err != nil {
+		log.Printf("Error resetting user: %s", err)
+		respondWithError(w, 500, "something went wrong")
+		return
+	}
 	w.WriteHeader(200)
 	cfg.fileserverHits.Store(0)
 }

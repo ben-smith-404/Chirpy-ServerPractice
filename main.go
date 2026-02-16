@@ -9,6 +9,7 @@ import (
 
 	"github.com/ben-smith-404/Chirpy-ServerPractice/internal/database"
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -19,16 +20,25 @@ func main() {
 	if err != nil {
 		exitProgram(err)
 	}
+	dbQueries := database.New(db)
 
 	apiCfg := &apiConfig{
 		fileserverHits: atomic.Int32{},
-		db:             database.New(db),
+		db:             dbQueries,
+		isDev:          false,
 	}
+	if os.Getenv("PLATFORM") == "dev" {
+		apiCfg.isDev = true
+	}
+
 	mux := http.NewServeMux()
 
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))
+
 	mux.HandleFunc("GET /api/healthz", handleReady)
-	mux.HandleFunc("POST /api/validate_chirp", handleChirp)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handleNewChirp)
+	mux.HandleFunc("POST /api/users", apiCfg.handleAddUser)
+
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handleHits)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handleReset)
 

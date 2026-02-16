@@ -6,11 +6,24 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
+
+	"github.com/ben-smith-404/Chirpy-ServerPractice/internal/database"
+	"github.com/google/uuid"
 )
 
-func handleChirp(w http.ResponseWriter, r *http.Request) {
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+func (cfg *apiConfig) handleNewChirp(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Body string `json:"body"`
+		Body   string `json:"body"`
+		UserID string `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -26,13 +39,31 @@ func handleChirp(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, "Chirp is too long")
 		return
 	}
-	type filteredString struct {
-		CleanedBody string `json:"cleaned_body"`
+
+	userID, err := uuid.Parse(params.UserID)
+	if err != nil {
+		log.Printf("Error parsing uuid string: %s", err)
+		respondWithError(w, 400, "user id is not in valid format")
+		return
 	}
-	responseBody := filteredString{
-		CleanedBody: maskProfanity(params.Body),
+
+	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
+		Body:   maskProfanity(params.Body),
+		UserID: userID,
+	})
+	if err != nil {
+		log.Printf("Error creating chirp: %s", err)
+		respondWithError(w, 500, "could not create chirp")
+		return
 	}
-	respondWithJSON(w, 200, responseBody)
+	responseBody := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}
+	respondWithJSON(w, 201, responseBody)
 }
 
 func maskProfanity(chirp string) string {
