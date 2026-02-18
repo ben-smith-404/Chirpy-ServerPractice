@@ -76,3 +76,47 @@ func maskProfanity(chirp string) string {
 	}
 	return strings.Join(words, " ")
 }
+
+func (cfg *apiConfig) getChirps(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		log.Printf("Error parsing path value to UUID: %s", err)
+		respondWithError(w, 500, "id is not a valid UUID")
+		return
+	}
+
+	chirp, err := cfg.db.GetChirpByID(r.Context(), chirpID)
+	if err != nil {
+		log.Printf("Error retrieving chirp: %s", err)
+		respondWithError(w, 404, "id is not valid")
+		return
+	}
+	responseBody := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}
+	respondWithJSON(w, 200, responseBody)
+}
+
+func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.db.GetAllChirps(r.Context())
+	if err != nil {
+		log.Printf("Error retrieving chirps from the database: %s", err)
+		respondWithError(w, 500, "could not retrieve chirps")
+		return
+	}
+	var returnVal []Chirp
+	for _, chirp := range chirps {
+		returnVal = append(returnVal, Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		})
+	}
+	respondWithJSON(w, 200, returnVal)
+}
